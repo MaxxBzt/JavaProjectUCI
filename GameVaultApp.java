@@ -2,13 +2,16 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.sql.*;
+import java.util.Vector;
 
 public class GameVaultApp {
+    private static JList<String> displayList;
+    private static Vector<String> listData;
+    private static DefaultListModel<String> listModel;
 
-    private static JTextArea displayArea;
-    private static final String DB_URL = "jdbc:mariadb://localhost:3306/gamevault_db";
-    private static final String DB_USER = "root";
-    private static final String DB_PASSWORD = "x";
+    private static final String DB_URL = "jdbc:mariadb://localhost/gamevault_db";
+    private static final String DB_USER = "max";
+    private static final String DB_PASSWORD = "";
 
     public static void main(String[] args) {
         createTableIfNotExists();
@@ -32,8 +35,9 @@ public class GameVaultApp {
         JButton addGame = new JButton("Add a game");
         panel.add(addGame, BorderLayout.NORTH);
 
-        displayArea = new JTextArea(10, 40);
-        JScrollPane scrollPane = new JScrollPane(displayArea);
+        listModel = new DefaultListModel<>();
+        displayList = new JList<>(listModel);
+        JScrollPane scrollPane = new JScrollPane(displayList);
         panel.add(scrollPane, BorderLayout.CENTER);
 
         addGame.addActionListener(new ActionListener() {
@@ -44,12 +48,17 @@ public class GameVaultApp {
             }
         });
 
-        displayArea.addMouseListener(new MouseAdapter() {
+        displayList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
                     // Double-click detected
-                    openNewFrame();
+                    int selectedIndex = displayList.getSelectedIndex();
+                    displayList.getSelectedIndex();
+
+                    if (selectedIndex != -1) {
+                        openNewFrame(selectedIndex);
+                    }
                 }
             }
         });
@@ -57,19 +66,68 @@ public class GameVaultApp {
         displayGamesList();
     }
 
-    private static void openNewFrame() {
-        JFrame newFrame = new JFrame("Game Details");
-        newFrame.setSize(300, 200);
-        newFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE); // Close only this frame on close
+    private static void openNewFrame(int selectedGameIndex) {
+        JFrame gameDetails = new JFrame("Game Details");
+        gameDetails.setSize(600, 300);
+        gameDetails.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         JPanel panel = new JPanel();
-        newFrame.add(panel);
+        panel.setLayout(new BorderLayout());
+        gameDetails.add(panel);
 
-        // Add your components to the newFrame as needed
-        JLabel label = new JLabel("Game Details");
-        panel.add(label);
+        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+            String sql = "SELECT * FROM game";
+            try (PreparedStatement preparedStatement = connection.prepareStatement(sql);
+                 ResultSet resultSet = preparedStatement.executeQuery()) {
 
-        newFrame.setVisible(true);
+                // Move to the selected game's position in the ResultSet
+                for (int i = 0; i <= selectedGameIndex; i++) {
+                    if (!resultSet.next()) {
+                        // Handle if the index is out of bounds
+                        JOptionPane.showMessageDialog(null, "Invalid index selected.");
+                        gameDetails.dispose(); // Close the frame if invalid index
+                        return;
+                    }
+                }
+
+                // Retrieve details from the ResultSet
+                String gameTitle = resultSet.getString("game_title");
+                int price = resultSet.getInt("price");
+                Date releaseDate = resultSet.getDate("release_date");
+                String studioName = resultSet.getString("studio_name");
+                int remainStock = resultSet.getInt("remain_stock");
+
+
+                // Create and set big title label
+                JTextField titleField = new JTextField(gameTitle);
+                titleField.setFont(new Font("Arial", Font.BOLD, 20));
+                titleField.setHorizontalAlignment(JLabel.CENTER);
+                panel.add(titleField, BorderLayout.NORTH);
+
+                // Create left panel for price and date
+                JPanel leftPanel = new JPanel(new GridLayout(2, 2));
+                leftPanel.add(new JLabel("Price $"));
+                leftPanel.add(new JTextField(String.valueOf(price)));
+                leftPanel.add(new JLabel("Release Date (yyyy-mm-dd)"));
+                leftPanel.add(new JTextField(String.valueOf(releaseDate)));
+                panel.add(leftPanel, BorderLayout.WEST);
+
+                // Create right panel for studio name and remaining stock
+                JPanel rightPanel = new JPanel(new GridLayout(2, 2));
+                rightPanel.add(new JLabel("Studio Name"));
+                rightPanel.add(new JTextField(studioName));
+                rightPanel.add(new JLabel("Remaining Stock"));
+                rightPanel.add(new JTextField(String.valueOf(remainStock)));
+
+                panel.add(rightPanel, BorderLayout.EAST);
+
+                gameDetails.setVisible(true);
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error fetching game details.");
+            gameDetails.dispose(); // Close the frame in case of an error
+        }
     }
 
     private static void createTableIfNotExists() {
@@ -83,7 +141,7 @@ public class GameVaultApp {
                     "gameID INT AUTO_INCREMENT PRIMARY KEY," +
                     "game_title VARCHAR(255)," +
                     "price INT," +
-                    "release_date TIMESTAMP," +
+                    "release_date DATE," +
                     "exclusive BIT," +
                     "studio_name VARCHAR(255)," +
                     "remain_stock INT," +
@@ -123,10 +181,10 @@ public class GameVaultApp {
             connection.close();
         } catch (SQLException ex) {
             ex.printStackTrace();
-            displayArea.append("Error: " + ex.getMessage() + "\n");
+            System.out.println("Error: " + ex.getMessage() + "\n");
         } catch (Exception ex) {
             ex.printStackTrace();
-            displayArea.append("Unexpected error: " + ex.getMessage() + "\n");
+            System.out.println("Unexpected error: " + ex.getMessage() + "\n");
         }
     }
 
@@ -146,16 +204,24 @@ public class GameVaultApp {
 
     private static void displayGamesList() {
         try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            String sql = "SELECT game_title FROM game;";
+            String sql = "SELECT * FROM game;";
             try (PreparedStatement preparedStatement = connection.prepareStatement(sql);
                  ResultSet resultSet = preparedStatement.executeQuery()) {
-
-                displayArea.setText(""); // Clear the displayArea
-
+                listModel.clear();
+                listData = new Vector<>();
                 while (resultSet.next()) {
                     String title = resultSet.getString("game_title");
-                    displayArea.append(title + "\n"); // Append each game title to the displayArea
+                    String price = resultSet.getString("price");
+                    int isExclusive = resultSet.getInt("exclusive");
+                    String studio_name = resultSet.getString("studio_name");
+                    if (isExclusive == 1) {
+                        title = title + " (Exclusive)";
+                    }
+                    String displayString = String.format("%s $%s %s", title, price,studio_name);
+
+                    listModel.addElement(displayString);
                 }
+
             }
         } catch (SQLException ex) {
             ex.printStackTrace();
