@@ -35,6 +35,10 @@ public class GameVaultApp {
         JButton addGame = new JButton("Add a game");
         panel.add(addGame, BorderLayout.NORTH);
 
+        JButton deleteGame = new JButton("Delete game");
+        deleteGame.setForeground(Color.RED);
+        panel.add(deleteGame, BorderLayout.SOUTH);
+
         listModel = new DefaultListModel<>();
         displayList = new JList<>(listModel);
         JScrollPane scrollPane = new JScrollPane(displayList);
@@ -44,6 +48,18 @@ public class GameVaultApp {
             @Override
             public void actionPerformed(ActionEvent e) {
                 addGame();
+                displayGamesList();
+            }
+        });
+
+        deleteGame.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int selectedIndex = displayList.getSelectedIndex();
+                displayList.getSelectedIndex();
+                if (selectedIndex !=-1){
+                    deleteGame(selectedIndex);
+                }
                 displayGamesList();
             }
         });
@@ -64,6 +80,41 @@ public class GameVaultApp {
         });
 
         displayGamesList();
+    }
+
+    private static void deleteGame(int selectedIndex) {
+
+        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+            String sql = "SELECT * FROM game";
+            try (PreparedStatement preparedStatement = connection.prepareStatement(sql);
+                 ResultSet resultSet = preparedStatement.executeQuery()) {
+
+                // Move to the selected game's position in the ResultSet
+                for (int i = 0; i <= selectedIndex; i++) {
+                    if (!resultSet.next()) {
+                        // Handle if the index is out of bounds
+                        JOptionPane.showMessageDialog(null, "Invalid index selected.");
+                        return;
+                    }
+                }
+                // ask the user if they want to delete the game or not
+                int confirmDialog = JOptionPane.showConfirmDialog(null, "Are you sure you want to delete : "+ resultSet.getString("game_title"));
+                // if the user dont confirm the delete, return
+                if (confirmDialog != JOptionPane.YES_OPTION) {
+                    return;
+                }
+                // delete the game
+                sql = "DELETE FROM game WHERE gameID = ?";
+                try (PreparedStatement preparedStatement1 = connection.prepareStatement(sql)) {
+                    preparedStatement1.setInt(1, resultSet.getInt("gameID"));
+                    preparedStatement1.executeUpdate();
+                }
+            }
+            JOptionPane.showMessageDialog(null, "Game deleted successfully.");
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error fetching game details.");
+        }
     }
 
     private static void openNewFrame(int selectedGameIndex) {
@@ -165,10 +216,28 @@ public class GameVaultApp {
             String exclusive = (exclusiveInt == 1) ? "1" : "0";
             //String exclusive = JOptionPane.showInputDialog("Is the game exclusive? 1 = yes / 0 = no :");
             String studio_name = JOptionPane.showInputDialog("Enter the name of the studio :");
-            String countryorigin = JOptionPane.showInputDialog("Enter the name of the studio's origin country :");
+            String countryorigin;
+            if (isStudioNameExists(connection, studio_name)) {
+                ResultSet resultSet = statement.executeQuery("SELECT countryorigin FROM studio WHERE studio_name = '" + studio_name + "'");
+
+                // Check if the result set has a valid row
+                if (resultSet.next()) {
+                    countryorigin = resultSet.getString("countryorigin");
+                } else {
+                    countryorigin = null;
+                }
+                resultSet.close();
+            } else {
+                countryorigin = JOptionPane.showInputDialog("Enter the name of the studio's origin country :");
+            }
+
             String stock = JOptionPane.showInputDialog("Enter the remaining stock :");
 
+
             String sql;
+
+
+            studio_name = studio_name.toUpperCase();
 
             if (!isStudioNameExists(connection, studio_name)) {
                 sql = "INSERT INTO studio (studio_name, countryorigin) VALUES ('" + studio_name + "', '" + countryorigin + "')";
@@ -189,6 +258,7 @@ public class GameVaultApp {
     }
 
     private static boolean isStudioNameExists(Connection connection, String studioName) throws SQLException {
+        studioName = studioName.toUpperCase();
         String query = "SELECT COUNT(*) FROM studio WHERE studio_name = ?";
         try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
             preparedStatement.setString(1, studioName);
