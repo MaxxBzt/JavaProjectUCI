@@ -1,18 +1,21 @@
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.*;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Vector;
+import java.util.List;
 
 public class GameVaultApp {
-    private static JList<String> displayList;
-    private static Vector<String> listData;
-    private static DefaultListModel<String> listModel;
-
-    private static final String DB_URL = "jdbc:mariadb://localhost/gamevault_db";
-    private static final String DB_USER = "max";
-    private static final String DB_PASSWORD = "";
+    private static final Vector<String> columnNames = new Vector<>(List.of(new String[]{"Id", "Title", "Price", "Release Date", "Exclusive", "Studio", "Rating", "Platforms", "Stock"}));
+    private static DefaultTableModel tableModel;
+    private static JTable displayTable;
+    private static Vector<Vector<String>> listData;
+    private static final String DB_URL = "jdbc:mariadb://localhost:3316/gamevault_db";
+    private static final String DB_USER = "root";
+    private static final String DB_PASSWORD = "1234";
 
     public static void main(String[] args) {
         createTableIfNotExists();
@@ -40,9 +43,9 @@ public class GameVaultApp {
         deleteGame.setForeground(Color.RED);
         panel.add(deleteGame, BorderLayout.SOUTH);
 
-        listModel = new DefaultListModel<>();
-        displayList = new JList<>(listModel);
-        JScrollPane scrollPane = new JScrollPane(displayList);
+        displayTable = new JTable();
+        tableModel = new DefaultTableModel();
+        JScrollPane scrollPane = new JScrollPane(displayTable);
         panel.add(scrollPane, BorderLayout.CENTER);
 
         addGame.addActionListener(new ActionListener() {
@@ -56,8 +59,7 @@ public class GameVaultApp {
         deleteGame.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                int selectedIndex = displayList.getSelectedIndex();
-                displayList.getSelectedIndex();
+                int selectedIndex = displayTable.getSelectedRow();
                 if (selectedIndex !=-1){
                     deleteGame(selectedIndex);
                 }
@@ -65,13 +67,12 @@ public class GameVaultApp {
             }
         });
 
-        displayList.addMouseListener(new MouseAdapter() {
+        displayTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
                     // Double-click detected
-                    int selectedIndex = displayList.getSelectedIndex();
-                    displayList.getSelectedIndex();
+                    int selectedIndex = displayTable.getSelectedRow();
 
                     if (selectedIndex != -1) {
                         openNewFrame(selectedIndex);
@@ -100,14 +101,14 @@ public class GameVaultApp {
                 }
                 // ask the user if they want to delete the game or not
                 int confirmDialog = JOptionPane.showConfirmDialog(null, "Are you sure you want to delete : "+ resultSet.getString("game_title"));
-                // if the user dont confirm the delete, return
+                // if the user doesn't confirm to delete, return
                 if (confirmDialog != JOptionPane.YES_OPTION) {
                     return;
                 }
                 // delete the game
-                sql = "DELETE FROM game WHERE gameID = ?";
+                sql = "DELETE FROM game WHERE game_id = ?";
                 try (PreparedStatement preparedStatement1 = connection.prepareStatement(sql)) {
-                    preparedStatement1.setInt(1, resultSet.getInt("gameID"));
+                    preparedStatement1.setInt(1, resultSet.getInt("game_id"));
                     preparedStatement1.executeUpdate();
                 }
             }
@@ -147,7 +148,7 @@ public class GameVaultApp {
                 int price = resultSet.getInt("price");
                 Date releaseDate = resultSet.getDate("release_date");
                 String studioName = resultSet.getString("studio_name");
-                int remainStock = resultSet.getInt("remain_stock");
+                int remainingStock = resultSet.getInt("remaining_stock");
 
 
                 // Create and set big title label
@@ -174,7 +175,7 @@ public class GameVaultApp {
                 studioComboBox.setSelectedItem(studioName);
                 rightPanel.add(studioComboBox);
                 rightPanel.add(new JLabel("Remaining Stock"));
-                rightPanel.add(new JTextField(String.valueOf(remainStock)));
+                rightPanel.add(new JTextField(String.valueOf(remainingStock)));
 
                 panel.add(rightPanel, BorderLayout.EAST);
 
@@ -189,7 +190,7 @@ public class GameVaultApp {
                         if (studioName.equals( ((String) studioComboBox.getSelectedItem()))) {
                             // Studio name is not changed
                             // Update the game details
-                            String updateSql = "UPDATE game SET price = ?, release_date = ?, remain_stock = ? WHERE game_title = ?";
+                            String updateSql = "UPDATE game SET price = ?, release_date = ?, remaining_stock = ? WHERE game_title = ?";
                             try (PreparedStatement updateStatement = updateConnection.prepareStatement(updateSql)) {
                                 // Get updated values from text fields
                                 int updatedPrice = Integer.parseInt(((JTextField) leftPanel.getComponent(1)).getText());
@@ -263,13 +264,15 @@ public class GameVaultApp {
                     "countryorigin VARCHAR(255))";
             statement.executeUpdate(createTableSQL);
             createTableSQL = "CREATE TABLE IF NOT EXISTS game (" +
-                    "gameID INT AUTO_INCREMENT PRIMARY KEY," +
+                    "game_id INT AUTO_INCREMENT PRIMARY KEY," +
                     "game_title VARCHAR(255)," +
                     "price INT," +
                     "release_date DATE," +
                     "exclusive BIT," +
                     "studio_name VARCHAR(255)," +
-                    "remain_stock INT," +
+                    "remaining_stock INT," +
+                    "rating DOUBLE," +
+                    "platforms VARCHAR(255)," +
                     "FOREIGN KEY(studio_name) REFERENCES studio(studio_name))";
             statement.executeUpdate(createTableSQL);
             System.out.println("Tables created successfully.");
@@ -307,11 +310,7 @@ public class GameVaultApp {
             }
 
             String stock = JOptionPane.showInputDialog("Enter the remaining stock :");
-
-
             String sql;
-
-
             studio_name = studio_name.toUpperCase();
 
             if (!isStudioNameExists(connection, studio_name)) {
@@ -319,7 +318,7 @@ public class GameVaultApp {
                 statement.executeUpdate(sql);
             }
 
-            sql = "INSERT INTO game (game_title, price, release_date, exclusive, studio_name, remain_stock) VALUES ('" + title + "', '" + price +"','"+ date +"', " + exclusive +", '" + studio_name +"','"+ stock +"')";
+            sql = "INSERT INTO game (game_title, price, release_date, exclusive, studio_name, remaining_stock) VALUES ('" + title + "', '" + price + "','" + date + "', " + exclusive + ", '" + studio_name + "','" + stock + "')";
             statement.executeUpdate(sql);
 
             connection.close();
@@ -370,28 +369,45 @@ public class GameVaultApp {
     }
 
     private static void displayGamesList() {
-        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)){
             String sql = "SELECT * FROM game;";
-            try (PreparedStatement preparedStatement = connection.prepareStatement(sql);
-                 ResultSet resultSet = preparedStatement.executeQuery()) {
-                listModel.clear();
-                listData = new Vector<>();
-                while (resultSet.next()) {
-                    String title = resultSet.getString("game_title");
-                    String price = resultSet.getString("price");
-                    int isExclusive = resultSet.getInt("exclusive");
-                    String studio_name = resultSet.getString("studio_name");
-                    if (isExclusive == 1) {
-                        title = title + " (Exclusive)";
-                    }
-                    String displayString = String.format("%s $%s %s", title, price,studio_name);
-
-                    listModel.addElement(displayString);
-                }
-
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            ResultSet resultSet = preparedStatement.executeQuery();
+            listData = new Vector<Vector<String>>();
+            while (resultSet.next()) {
+                listData.add(new Game(resultSet).toVector());
             }
+            tableModel = new DefaultTableModel(listData, columnNames) {
+                @Override
+                public boolean isCellEditable(int row, int column) {
+                    //all cells false
+                    return false;
+                }
+            };
+            displayTable.setModel(tableModel);
         } catch (SQLException ex) {
             ex.printStackTrace();
+        }
+    }
+
+    public static void updateGameTable(ArrayList<Game> gameList){
+
+    }
+
+    static class GameRankingManagement {
+        public static ArrayList<Game> getGameRanking() {
+            ArrayList<Game> ranking = new ArrayList<>();
+            try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+                 Statement statement = connection.createStatement()) {
+                String sql = "SELECT * FROM game ORDER BY rating DESC";
+                ResultSet resultSet = statement.executeQuery(sql);
+                while (resultSet.next()){
+                    ranking.add(new Game(resultSet));
+                }
+            }catch (SQLException ex){
+                ex.printStackTrace();
+            }
+            return ranking;
         }
     }
 }
