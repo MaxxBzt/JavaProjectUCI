@@ -35,13 +35,11 @@ public class Game {
             setExclusive(resultSet.getBoolean("exclusive"));
             setStudioName(resultSet.getString("studio_name"));
             setRemainingStock(resultSet.getInt("remaining_stock"));
-            setRating(resultSet.getFloat("rating"));
+            setRating((resultSet.getString("rating") == null) ? -1 : resultSet.getFloat("rating"));
 
-            String[] platforms = {};
-            platforms = resultSet.getString("platforms").split(", ");
-
-            setPlatforms(platforms);
-        } catch (NullPointerException | SQLException e) {
+            String platforms = resultSet.getString("platforms");
+            setPlatforms(platforms == null ? null : platforms.split(" ,"));
+        } catch (SQLException e) {
             System.out.println(e.getMessage());
         }
     }
@@ -136,16 +134,16 @@ public class Game {
     }
 
     public Vector<String> toVector(){
-        return new Vector<String >(List.of(new String[]{
-                String.valueOf(gameId),
-                gameTitle,
-                String.valueOf(price),
-                String.valueOf(releaseDate),
-                exclusive ? "yes" : "no",
-                studioName,
-                String.valueOf(rating),
-                Arrays.toString(platforms),
-                String.valueOf(remainingStock)
+        return new Vector<>(List.of(new String[]{
+                String.valueOf(getGameId()),
+                getGameTitle(),
+                String.valueOf(getPrice()),
+                String.valueOf(getReleaseDate()),
+                isExclusive() ? "yes" : "no",
+                getStudioName(),
+                (getRating() == -1) ? "no rating": String.valueOf(getRating()),
+                (getPlatforms() == null) ? "none" : Arrays.toString(getPlatforms()),
+                String.valueOf(getRemainingStock())
         }));
     }
 }

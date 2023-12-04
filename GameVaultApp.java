@@ -1,11 +1,11 @@
+import com.toedter.calendar.JDateChooser;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.*;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.Vector;
+import java.sql.Date;
+import java.util.*;
 import java.util.List;
 
 public class GameVaultApp {
@@ -215,7 +215,6 @@ public class GameVaultApp {
                                     JOptionPane.showMessageDialog(null, "Failed to update game. Please check your input.");
                                 }
                             }
-                            return;
                         }
                         else {
                             String updatedStudioName = (String) studioComboBox.getSelectedItem();
@@ -261,7 +260,7 @@ public class GameVaultApp {
              Statement statement = connection.createStatement()) {
             String createTableSQL = "CREATE TABLE IF NOT EXISTS studio (" +
                     "studio_name VARCHAR(255) PRIMARY KEY," +
-                    "countryorigin VARCHAR(255))";
+                    "country_of_origin VARCHAR(255))";
             statement.executeUpdate(createTableSQL);
             createTableSQL = "CREATE TABLE IF NOT EXISTS game (" +
                     "game_id INT AUTO_INCREMENT PRIMARY KEY," +
@@ -284,42 +283,110 @@ public class GameVaultApp {
     private static void addGame() {
         try {
             Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-            Statement statement = connection.createStatement();
 
             String title = JOptionPane.showInputDialog("Enter the title of the game :");
+            if(title == null) {
+                return;
+            }
+
             String price = JOptionPane.showInputDialog("Enter the price :");
-            String date = JOptionPane.showInputDialog("Enter the release date of the game (yyyy-mm-dd):");
-            int exclusiveInt = Integer.parseInt(JOptionPane.showInputDialog("Is the game exclusive? 1 = yes / 0 = no :"));
-            String exclusive = (exclusiveInt == 1) ? "1" : "0";
-            //String exclusive = JOptionPane.showInputDialog("Is the game exclusive? 1 = yes / 0 = no :");
-            String studio_name = JOptionPane.showInputDialog("Enter the name of the studio :");
-            studio_name = studio_name.toUpperCase();
-            String countryorigin;
-            if (isStudioNameExists(connection, studio_name)) {
-                ResultSet resultSet = statement.executeQuery("SELECT countryorigin FROM studio WHERE studio_name = '" + studio_name + "'");
+            int intPrice;
+            if(price == null) {
+                return;
+            }
+            else{
+                try{
+                    intPrice = Integer.parseInt(price);
+                } catch (NumberFormatException e){
+                    JOptionPane.showMessageDialog(null, "Error: an integer was expected", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            }
+
+
+            JDateChooser dateChooser = new JDateChooser();
+            JPanel datePanel = new JPanel(new BorderLayout());
+            datePanel.add(new JLabel("Enter the release date"), BorderLayout.NORTH);
+            datePanel.add(dateChooser);
+            JOptionPane.showMessageDialog(null, datePanel);
+
+            java.util.Date date = dateChooser.getDate();
+            if(date == null){
+                return;
+            }
+            System.out.println(date);
+
+            Object[] options = {"yes", "no"};
+            Object selectionObject = JOptionPane.showInputDialog(null, "Is the game exclusive ?", "Menu", JOptionPane.PLAIN_MESSAGE, null, options, options[0]);
+            Boolean exclusive = null;
+
+            if(Objects.equals(selectionObject.toString(), "yes")){
+                exclusive = true;
+            }
+            else if(Objects.equals(selectionObject.toString(), "no")){
+                exclusive = false;
+            }
+            if(exclusive == null){
+                return;
+            }
+
+            String studioName = JOptionPane.showInputDialog("Enter the name of the studio :");
+            if(studioName == null){
+                return;
+            }
+
+            int intStock;
+            String stock = JOptionPane.showInputDialog("Enter the remaining stock :");
+            if(stock == null){
+                return;
+            }
+            else{
+                try{
+                    intStock = Integer.parseInt(price);
+                } catch (NumberFormatException e){
+                    JOptionPane.showMessageDialog(null, "Error: an integer was expected", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            }
+
+
+            String countryOfOrigin;
+
+            if (isStudioNameExists(connection, studioName)) {
+                String sql = "SELECT country_of_origin FROM studio WHERE studio_name = ?";
+                PreparedStatement preparedStatement = connection.prepareStatement(sql);
+                preparedStatement.setString(1, studioName);
+                ResultSet resultSet = preparedStatement.executeQuery();
 
                 // Check if the result set has a valid row
                 if (resultSet.next()) {
-                    countryorigin = resultSet.getString("countryorigin");
+                    countryOfOrigin = resultSet.getString("country_of_origin");
                 } else {
-                    countryorigin = null;
+                    countryOfOrigin = null;
                 }
                 resultSet.close();
             } else {
-                countryorigin = JOptionPane.showInputDialog("Enter the name of the studio's origin country :");
+                countryOfOrigin = JOptionPane.showInputDialog("Enter the name of the studio's origin country :");
             }
-
-            String stock = JOptionPane.showInputDialog("Enter the remaining stock :");
             String sql;
-            studio_name = studio_name.toUpperCase();
 
-            if (!isStudioNameExists(connection, studio_name)) {
-                sql = "INSERT INTO studio (studio_name, countryorigin) VALUES ('" + studio_name + "', '" + countryorigin + "')";
-                statement.executeUpdate(sql);
+            if (!isStudioNameExists(connection, studioName)) {
+                sql = "INSERT INTO studio (studio_name, country_of_origin) VALUES (?, ?);";
+                PreparedStatement preparedStatement = connection.prepareStatement(sql);
+                preparedStatement.setString(1, studioName);
+                preparedStatement.setString(2, countryOfOrigin);
+                preparedStatement.executeUpdate();
             }
 
-            sql = "INSERT INTO game (game_title, price, release_date, exclusive, studio_name, remaining_stock) VALUES ('" + title + "', '" + price + "','" + date + "', " + exclusive + ", '" + studio_name + "','" + stock + "')";
-            statement.executeUpdate(sql);
+            sql = "INSERT INTO game (game_title, price, release_date, exclusive, studio_name, remaining_stock) VALUES (?, ?, ?, ? ,?, ?)";
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.setString(1, title);
+            preparedStatement.setInt(2, intPrice);
+            preparedStatement.setDate(3, new java.sql.Date(date.getTime()));
+            preparedStatement.setBoolean(4, exclusive);
+            preparedStatement.setString(5, studioName);
+            preparedStatement.setInt(6, intStock);
+            preparedStatement.executeUpdate();
 
             connection.close();
         } catch (SQLException ex) {
@@ -343,7 +410,6 @@ public class GameVaultApp {
                     String studioName = resultSet.getString("studio_name");
                     studioNames.add(studioName);
                 }
-
             }
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -373,7 +439,7 @@ public class GameVaultApp {
             String sql = "SELECT * FROM game;";
             PreparedStatement preparedStatement = connection.prepareStatement(sql);
             ResultSet resultSet = preparedStatement.executeQuery();
-            listData = new Vector<Vector<String>>();
+            listData = new Vector<>();
             while (resultSet.next()) {
                 listData.add(new Game(resultSet).toVector());
             }
