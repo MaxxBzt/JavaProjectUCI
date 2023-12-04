@@ -4,14 +4,15 @@ import java.awt.event.*;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Vector;
+import javax.swing.border.EmptyBorder;
 
 public class GameVaultApp {
     private static JList<String> displayList;
     private static Vector<String> listData;
     private static DefaultListModel<String> listModel;
 
-    private static final String DB_URL = "jdbc:mariadb://localhost/gamevault_db";
-    private static final String DB_USER = "max";
+    private static final String DB_URL = "jdbc:mariadb://localhost:3307/gamevault_db";
+    private static final String DB_USER = "";
     private static final String DB_PASSWORD = "";
 
     public static void main(String[] args) {
@@ -33,17 +34,36 @@ public class GameVaultApp {
     private static void placeComponents(JPanel panel) {
         panel.setLayout(new BorderLayout());
 
+        // Define pale colors
+        Color paleBackground = new Color(230, 230, 240);
+        Color paleForeground = new Color(60, 60, 60);
+
+        // Add a game button style
         JButton addGame = new JButton("Add a game");
+        addGame.setBackground(paleBackground);
+        addGame.setForeground(paleForeground);
+        addGame.setFocusPainted(false);
         panel.add(addGame, BorderLayout.NORTH);
 
+        //Delete a game button style
         JButton deleteGame = new JButton("Delete game");
+        deleteGame.setBackground(paleBackground);
         deleteGame.setForeground(Color.RED);
         panel.add(deleteGame, BorderLayout.SOUTH);
 
+        // Apply styles to JList
         listModel = new DefaultListModel<>();
         displayList = new JList<>(listModel);
+        displayList.setBackground(paleBackground);
+        displayList.setForeground(paleForeground);
         JScrollPane scrollPane = new JScrollPane(displayList);
         panel.add(scrollPane, BorderLayout.CENTER);
+
+        // Add spacing around the components
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // Add spacing between JList elements
+        displayList.setFixedCellHeight(20);
 
         addGame.addActionListener(new ActionListener() {
             @Override
@@ -100,7 +120,7 @@ public class GameVaultApp {
                 }
                 // ask the user if they want to delete the game or not
                 int confirmDialog = JOptionPane.showConfirmDialog(null, "Are you sure you want to delete : "+ resultSet.getString("game_title"));
-                // if the user dont confirm the delete, return
+                // if the user doesn't confirm the deletion, return
                 if (confirmDialog != JOptionPane.YES_OPTION) {
                     return;
                 }
@@ -120,12 +140,17 @@ public class GameVaultApp {
 
     private static void openNewFrame(int selectedGameIndex) {
         JFrame gameDetails = new JFrame("Game Details");
-        gameDetails.setSize(600, 300);
+        gameDetails.setSize(700, 350);
         gameDetails.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
         JPanel panel = new JPanel();
         panel.setLayout(new BorderLayout());
         gameDetails.add(panel);
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // Define pale colors
+        Color paleBackground = new Color(230, 230, 240);
+        Color paleForeground = new Color(60, 60, 60);
 
         try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
             String sql = "SELECT * FROM game";
@@ -137,7 +162,7 @@ public class GameVaultApp {
                     if (!resultSet.next()) {
                         // Handle if the index is out of bounds
                         JOptionPane.showMessageDialog(null, "Invalid index selected.");
-                        gameDetails.dispose(); // Close the frame if invalid index
+                        gameDetails.dispose(); // Close the frame if an invalid index
                         return;
                     }
                 }
@@ -150,38 +175,64 @@ public class GameVaultApp {
                 int remainStock = resultSet.getInt("remain_stock");
 
 
-                // Create and set big title label
+                // Create and set a big title label
                 JTextField titleField = new JTextField(gameTitle);
                 titleField.setFont(new Font("Arial", Font.BOLD, 20));
                 titleField.setHorizontalAlignment(JLabel.CENTER);
+                titleField.setBackground(paleBackground);
+                titleField.setForeground(paleForeground);
                 panel.add(titleField, BorderLayout.NORTH);
 
-                // Create left panel for price and date
-                JPanel leftPanel = new JPanel(new GridLayout(3, 2)); // Change to 3 rows
-                leftPanel.add(new JLabel("Price $"));
-                leftPanel.add(new JTextField(String.valueOf(price)));
-                leftPanel.add(new JLabel("Release Date"));
-                leftPanel.add(new JTextField(String.valueOf(releaseDate)));
-                leftPanel.add(new JLabel("(YYYY-MM-DD)")); // Add label below Release Date
-                panel.add(leftPanel, BorderLayout.WEST);
+                // Create a panel for the game details
+                JPanel infoPanel = new JPanel(new GridLayout(2, 2));
+                infoPanel.setBorder(new EmptyBorder(20, 0, 20, 0));
 
 
-                // Create right panel for studio name and remaining stock
-                JPanel rightPanel = new JPanel(new GridLayout(2, 2));
-                rightPanel.add(new JLabel("Studio Name"));
+                //Price area
+                JPanel topLeftPanel = new JPanel(new GridLayout(1, 2));
+                topLeftPanel.add(new JLabel("Price $"));
+                topLeftPanel.add(new JTextField(String.valueOf(price)));
+                topLeftPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+                //Release date area
+                JPanel bottomLeftPanel = new JPanel(new GridLayout(1, 2));
+                JPanel releaseDateTextPanel = new JPanel(new GridLayout(4, 1));
+                releaseDateTextPanel.setBorder(new EmptyBorder(10, 0, 10, 20));
+                releaseDateTextPanel.add(new JLabel(""));
+                releaseDateTextPanel.add(new JLabel("Release Date"));
+                releaseDateTextPanel.add(new JLabel("(YYYY-MM-DD)"));
+                bottomLeftPanel.add(releaseDateTextPanel);
+                bottomLeftPanel.add(new JTextField(String.valueOf(releaseDate)));
+                bottomLeftPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+                //Studio name area
+                JPanel topRightPanel = new JPanel(new GridLayout(1, 2));
+                topRightPanel.add(new JLabel("Studio Name"));
                 ArrayList<String> studioNames = fetchStudioNames();
                 JComboBox<String> studioComboBox = new JComboBox<>(studioNames.toArray(new String[0]));
                 studioComboBox.setSelectedItem(studioName);
-                rightPanel.add(studioComboBox);
-                rightPanel.add(new JLabel("Remaining Stock"));
-                rightPanel.add(new JTextField(String.valueOf(remainStock)));
+                topRightPanel.add(studioComboBox);
+                topRightPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
-                panel.add(rightPanel, BorderLayout.EAST);
+                //Remaining stock area
+                JPanel bottomRightPanel = new JPanel(new GridLayout(1, 2));
+                bottomRightPanel.add(new JLabel("Remaining Stock"));
+                bottomRightPanel.add(new JTextField(String.valueOf(remainStock)));
+                bottomRightPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
-                JPanel buttonPanel = new JPanel();
+                // Add the panels to the info panel
+                infoPanel.add(topLeftPanel);
+                infoPanel.add(topRightPanel);
+                infoPanel.add(bottomLeftPanel);
+                infoPanel.add(bottomRightPanel);
+                panel.add(infoPanel, BorderLayout.CENTER);
+
+                // Add an update button
                 JButton updateButton = new JButton("Update Game");
-                buttonPanel.add(updateButton);
-                panel.add(buttonPanel, BorderLayout.SOUTH);
+                updateButton.setBackground(paleBackground);
+                panel.add(updateButton, BorderLayout.SOUTH);
+
+
 
 
                 updateButton.addActionListener(e -> {
@@ -189,18 +240,23 @@ public class GameVaultApp {
                         if (studioName.equals( ((String) studioComboBox.getSelectedItem()))) {
                             // Studio name is not changed
                             // Update the game details
-                            String updateSql = "UPDATE game SET price = ?, release_date = ?, remain_stock = ? WHERE game_title = ?";
+                            String updateSql = "UPDATE game SET price = ?, release_date = ?, remain_stock = ?, game_title = ? WHERE game_title = ?";
                             try (PreparedStatement updateStatement = updateConnection.prepareStatement(updateSql)) {
                                 // Get updated values from text fields
-                                int updatedPrice = Integer.parseInt(((JTextField) leftPanel.getComponent(1)).getText());
-                                String updatedReleaseDate = ((JTextField) leftPanel.getComponent(3)).getText();
-                                int updatedRemainStock = Integer.parseInt(((JTextField) rightPanel.getComponent(3)).getText());
+                                int updatedPrice = Integer.parseInt(((JTextField) topLeftPanel.getComponent(1)).getText());
+                                String updatedReleaseDate = ((JTextField) bottomLeftPanel.getComponent(1)).getText();
+                                int updatedRemainStock = Integer.parseInt(((JTextField) bottomRightPanel.getComponent(1)).getText());
+                                String updatedGameTitle = ((JTextField) titleField).getText();
+
 
                                 // Set parameters for the update statement
                                 updateStatement.setInt(1, updatedPrice);
                                 updateStatement.setString(2, updatedReleaseDate);
                                 updateStatement.setInt(3, updatedRemainStock);
-                                updateStatement.setString(4, gameTitle);
+                                updateStatement.setString(4, updatedGameTitle);
+                                updateStatement.setString(5, gameTitle);
+
+
 
                                 // Execute the update statement
                                 int rowsAffected = updateStatement.executeUpdate();
@@ -245,6 +301,7 @@ public class GameVaultApp {
                         JOptionPane.showMessageDialog(null, "Error updating game details.");
                     }
                 });
+
 
                 gameDetails.setVisible(true);
             }
