@@ -11,6 +11,7 @@ public class Game {
     private String studioName;
     private float rating = -1;
     private String[] platforms;
+    private int remainingStock;
     public Game(){}
 
     public Game(int gameId, String gameTitle, int price, Date releaseDate, boolean exclusive, String studioName, int remainingStock, float rating, String[] platforms) {
@@ -44,8 +45,6 @@ public class Game {
         }
     }
 
-    private int remainingStock;
-
     public int getGameId() {
         return gameId;
     }
@@ -55,7 +54,7 @@ public class Game {
     }
 
     public String getGameTitle() {
-        return gameTitle;
+        return gameTitle==null ? null : String.valueOf(gameTitle);
     }
 
     public void setGameTitle(String gameTitle) {
@@ -71,7 +70,7 @@ public class Game {
     }
 
     public Date getReleaseDate() {
-        return releaseDate;
+        return releaseDate==null ? null :  new Date(releaseDate.getTime());
     }
 
     public void setReleaseDate(Date releaseDate) {
@@ -87,7 +86,7 @@ public class Game {
     }
 
     public String getStudioName() {
-        return studioName;
+        return studioName==null ? null :String.valueOf(studioName);
     }
 
     public void setStudioName(String studioName) {
@@ -111,7 +110,7 @@ public class Game {
     }
 
     public String[] getPlatforms() {
-        return platforms;
+        return platforms==null ? null : Arrays.copyOf(platforms, platforms.length);
     }
 
     public void setPlatforms(String[] platforms) {
