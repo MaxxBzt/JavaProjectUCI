@@ -14,6 +14,9 @@ public class GameVaultApp {
     private static DefaultTableModel tableModel;
     private static JTable displayTable;
     private static Vector<Vector<String>> listData;
+    private static String sort;
+    private static String filter;
+    private static String order;
     private static final String DB_URL = "jdbc:mariadb://localhost:3316/gamevault_db";
     private static final String DB_USER = "root";
     private static final String DB_PASSWORD = "1234";
@@ -41,23 +44,90 @@ public class GameVaultApp {
         Color paleBackground = new Color(230, 230, 240);
         Color paleForeground = new Color(60, 60, 60);
 
+        // top toolbar
+
+        JPanel topPanel = new JPanel(new GridLayout(1,2));
+
         // Add a game button style
         JButton addGame = new JButton("Add a game");
         addGame.setBackground(paleBackground);
         addGame.setForeground(paleForeground);
         addGame.setFocusPainted(false);
-        panel.add(addGame, BorderLayout.NORTH);
+        topPanel.add(addGame);
 
-        //Delete a game button style
+        // Delete a game button style
         JButton deleteGame = new JButton("Delete game");
         deleteGame.setBackground(paleBackground);
         deleteGame.setForeground(Color.RED);
-        panel.add(deleteGame, BorderLayout.SOUTH);
+        topPanel.add(deleteGame);
 
+        panel.add(topPanel, BorderLayout.NORTH);
+
+        // Game Table
         displayTable = new JTable();
         tableModel = new DefaultTableModel();
         JScrollPane scrollPane = new JScrollPane(displayTable);
         panel.add(scrollPane, BorderLayout.CENTER);
+
+        // Bottom toolbar
+        JPanel bottomPanel = new JPanel(new GridLayout(1, 5));
+
+        // Search text field
+        JLabel searchLabel = new JLabel("Search: ");
+        JTextField searchTextField = new JTextField();
+        searchTextField.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String title = searchTextField.getText();
+                if(title == null || title.equals("")) {
+                    displayGamesList();
+                }
+                else {
+                    filter = title;
+                    displayGamesList(GameManagement.FILTER_BY);
+                }
+            }
+        });
+
+        // Sorting
+        JLabel sortLabel = new JLabel("Sort by: ");
+        String[] orderItems = new String[] {"ascending", "descending"};
+        JComboBox<String> orderComboBox = new JComboBox<>(orderItems);
+
+        orderComboBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if(Objects.equals(orderComboBox.getSelectedItem(), "descending")){
+                    order = "DESC";
+                }
+                else {
+                    order = "ASC";
+                }
+                displayGamesList(GameManagement.FILTER_AND_ORDER_BY);
+            }
+        });
+
+        String[] sortItems = new String[] {"ID", "Title", "Price", "Release date", "Exclusivity", "Studio", "Rating", "Stock"};
+        JComboBox<String> sortComboBox = new JComboBox<>(sortItems);
+        sortComboBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int index = 0;
+                while(index< sortItems.length && !Objects.requireNonNull(sortComboBox.getSelectedItem()).toString().equals(sortItems[index])) {
+                    index++;
+                }
+                sort = (new String[] {"game_id", "game_title", "price", "release_date", "exclusive", "studio_name", "rating", "stock"})[index];
+                displayGamesList(GameManagement.FILTER_AND_ORDER_BY);
+            }
+        });
+
+        bottomPanel.add(searchLabel);
+        bottomPanel.add(searchTextField);
+        bottomPanel.add(sortLabel);
+        bottomPanel.add(sortComboBox);
+        bottomPanel.add(orderComboBox);
+
+        panel.add(bottomPanel, BorderLayout.SOUTH);
 
         addGame.addActionListener(new ActionListener() {
             @Override
@@ -74,7 +144,6 @@ public class GameVaultApp {
                 if (selectedIndex !=-1){
                     deleteGame(selectedIndex);
                 }
-                displayGamesList();
             }
         });
 
@@ -96,41 +165,35 @@ public class GameVaultApp {
     }
 
     private static void deleteGame(int selectedIndex) {
-
         try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            String sql = "SELECT * FROM game";
-            try (PreparedStatement preparedStatement = connection.prepareStatement(sql);
-                 ResultSet resultSet = preparedStatement.executeQuery()) {
-
-                // Move to the selected game's position in the ResultSet
-                for (int i = 0; i <= selectedIndex; i++) {
-                    if (!resultSet.next()) {
-                        // Handle if the index is out of bounds
-                        JOptionPane.showMessageDialog(null, "Invalid index selected.");
-                        return;
-                    }
+            int gameId = Integer.parseInt(listData.elementAt(selectedIndex).elementAt(0));
+            String gameTitle = listData.elementAt(selectedIndex).elementAt(1);
+            // ask the user if they want to delete the game or not
+            int confirmDialog = JOptionPane.showConfirmDialog(null, "Are you sure you want to delete : "+ gameTitle);
+            // if the user doesn't confirm to delete, return
+            if (confirmDialog != JOptionPane.YES_OPTION) {
+                return;
+            }
+            // delete the game
+            String sql = "DELETE FROM game WHERE game_id = ?";
+            try (PreparedStatement preparedStatement1 = connection.prepareStatement(sql)) {
+                preparedStatement1.setInt(1, gameId);
+                int affectedRows = preparedStatement1.executeUpdate();
+                if(affectedRows == 1) {
+                    JOptionPane.showMessageDialog(null, "Game deleted successfully.", "Error", JOptionPane.ERROR_MESSAGE);
                 }
-                // ask the user if they want to delete the game or not
-                int confirmDialog = JOptionPane.showConfirmDialog(null, "Are you sure you want to delete : "+ resultSet.getString("game_title"));
-                // if the user doesn't confirm to delete, return
-                if (confirmDialog != JOptionPane.YES_OPTION) {
-                    return;
-                }
-                // delete the game
-                sql = "DELETE FROM game WHERE game_id = ?";
-                try (PreparedStatement preparedStatement1 = connection.prepareStatement(sql)) {
-                    preparedStatement1.setInt(1, resultSet.getInt("game_id"));
-                    preparedStatement1.executeUpdate();
+                else{
+                    JOptionPane.showMessageDialog(null, "Game doesn't exist.", "Error", JOptionPane.ERROR_MESSAGE);
                 }
             }
-            JOptionPane.showMessageDialog(null, "Game deleted successfully.");
         } catch (SQLException ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(null, "Error fetching game details.");
+            JOptionPane.showMessageDialog(null, "SQL Error while deleting game :" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private static void openNewFrame(int selectedGameIndex) {
+        int gameId = Integer.parseInt(listData.get(selectedGameIndex).get(0));
         JFrame gameDetails = new JFrame("Game Details");
         gameDetails.setSize(700, 350);
         gameDetails.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -145,157 +208,147 @@ public class GameVaultApp {
         Color paleForeground = new Color(60, 60, 60);
 
         try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-            String sql = "SELECT * FROM game";
-            try (PreparedStatement preparedStatement = connection.prepareStatement(sql);
-                 ResultSet resultSet = preparedStatement.executeQuery()) {
+            String sql = "SELECT * FROM game WHERE game_id = ?;";
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.setInt(1, gameId);
+            ResultSet resultSet = preparedStatement.executeQuery();
+            resultSet.next();
 
-                // Move to the selected game's position in the ResultSet
-                for (int i = 0; i <= selectedGameIndex; i++) {
-                    if (!resultSet.next()) {
-                        // Handle if the index is out of bounds
-                        JOptionPane.showMessageDialog(null, "Invalid index selected.");
-                        gameDetails.dispose(); // Close the frame if an invalid index
-                        return;
+            // Retrieve details from the ResultSet
+            String gameTitle = resultSet.getString("game_title");
+            int price = resultSet.getInt("price");
+            Date releaseDate = resultSet.getDate("release_date");
+            String studioName = resultSet.getString("studio_name");
+            int remainingStock = resultSet.getInt("remaining_stock");
+
+
+            // Create and set a big title label
+            JTextField titleField = new JTextField(gameTitle);
+            titleField.setFont(new Font("Arial", Font.BOLD, 20));
+            titleField.setHorizontalAlignment(JLabel.CENTER);
+            titleField.setBackground(paleBackground);
+            titleField.setForeground(paleForeground);
+            panel.add(titleField, BorderLayout.NORTH);
+
+            // Create a panel for the game details
+            JPanel infoPanel = new JPanel(new GridLayout(2, 2));
+            infoPanel.setBorder(new EmptyBorder(20, 0, 20, 0));
+
+
+            //Price area
+            JPanel topLeftPanel = new JPanel(new GridLayout(1, 2));
+            topLeftPanel.add(new JLabel("Price $"));
+            topLeftPanel.add(new JTextField(String.valueOf(price)));
+            topLeftPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+            //Release date area
+            JPanel bottomLeftPanel = new JPanel(new GridLayout(1, 2));
+            JPanel releaseDateTextPanel = new JPanel(new GridLayout(4, 1));
+            releaseDateTextPanel.setBorder(new EmptyBorder(10, 0, 10, 20));
+            releaseDateTextPanel.add(new JLabel(""));
+            releaseDateTextPanel.add(new JLabel("Release Date"));
+            releaseDateTextPanel.add(new JLabel("(YYYY-MM-DD)"));
+            bottomLeftPanel.add(releaseDateTextPanel);
+            bottomLeftPanel.add(new JTextField(String.valueOf(releaseDate)));
+            bottomLeftPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+            //Studio name area
+            JPanel topRightPanel = new JPanel(new GridLayout(1, 2));
+            topRightPanel.add(new JLabel("Studio Name"));
+            ArrayList<String> studioNames = fetchStudioNames();
+            JComboBox<String> studioComboBox = new JComboBox<>(studioNames.toArray(new String[0]));
+            studioComboBox.setSelectedItem(studioName);
+            topRightPanel.add(studioComboBox);
+            topRightPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+            //Remaining stock area
+            JPanel bottomRightPanel = new JPanel(new GridLayout(1, 2));
+            bottomRightPanel.add(new JLabel("Remaining Stock"));
+            bottomRightPanel.add(new JTextField(String.valueOf(remainingStock)));
+            bottomRightPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+            // Add the panels to the info panel
+            infoPanel.add(topLeftPanel);
+            infoPanel.add(topRightPanel);
+            infoPanel.add(bottomLeftPanel);
+            infoPanel.add(bottomRightPanel);
+            panel.add(infoPanel, BorderLayout.CENTER);
+
+            // Add an update button
+            JButton updateButton = new JButton("Update Game");
+            updateButton.setBackground(paleBackground);
+            panel.add(updateButton, BorderLayout.SOUTH);
+
+
+
+
+            updateButton.addActionListener(e -> {
+                try (Connection updateConnection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+                    if (studioName.equals( ((String) studioComboBox.getSelectedItem()))) {
+                        // Studio name is not changed
+                        // Update the game details
+                        String updateSql = "UPDATE game SET price = ?, release_date = ?, remaining_stock = ?, game_title = ? WHERE game_title = ?";
+                        try (PreparedStatement updateStatement = updateConnection.prepareStatement(updateSql)) {
+                            // Get updated values from text fields
+                            int updatedPrice = Integer.parseInt(((JTextField) topLeftPanel.getComponent(1)).getText());
+                            String updatedReleaseDate = ((JTextField) bottomLeftPanel.getComponent(1)).getText();
+                            int updatedRemainStock = Integer.parseInt(((JTextField) bottomRightPanel.getComponent(1)).getText());
+                            String updatedGameTitle = ((JTextField) titleField).getText();
+
+
+                            // Set parameters for the update statement
+                            updateStatement.setInt(1, updatedPrice);
+                            updateStatement.setString(2, updatedReleaseDate);
+                            updateStatement.setInt(3, updatedRemainStock);
+                            updateStatement.setString(4, updatedGameTitle);
+                            updateStatement.setString(5, gameTitle);
+
+
+
+                            // Execute the update statement
+                            int rowsAffected = updateStatement.executeUpdate();
+
+                            if (rowsAffected > 0) {
+                                JOptionPane.showMessageDialog(null, "Game updated successfully!");
+                                displayGamesList();
+                                gameDetails.dispose(); // Close the frame after successful update
+
+                            } else {
+                                JOptionPane.showMessageDialog(null, "Failed to update game. Please check your input.");
+                            }
+                        }
                     }
+                    else {
+                        String updatedStudioName = (String) studioComboBox.getSelectedItem();
+                        // Change the studio of the game
+                        String updateSql = "UPDATE game SET studio_name = ? WHERE game_title = ?";
+                        try (PreparedStatement updateStatement = updateConnection.prepareStatement(updateSql)) {
+                            // Set parameters for the update statement
+                            updateStatement.setString(1, updatedStudioName);
+                            updateStatement.setString(2, gameTitle);
+
+                            // Execute the update statement
+                            int rowsAffected = updateStatement.executeUpdate();
+
+                            if (rowsAffected > 0) {
+                                JOptionPane.showMessageDialog(null, "Game updated successfully!");
+                                displayGamesList();
+                                gameDetails.dispose(); // Close the frame after successful update
+
+                            } else {
+                                JOptionPane.showMessageDialog(null, "Failed to update game. Please check your input.");
+                            }
+                        }
+
+                    }
+
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                    JOptionPane.showMessageDialog(null, "Error updating game details.");
                 }
+            });
 
-                // Retrieve details from the ResultSet
-                String gameTitle = resultSet.getString("game_title");
-                int price = resultSet.getInt("price");
-                Date releaseDate = resultSet.getDate("release_date");
-                String studioName = resultSet.getString("studio_name");
-                int remainingStock = resultSet.getInt("remaining_stock");
-
-
-                // Create and set a big title label
-                JTextField titleField = new JTextField(gameTitle);
-                titleField.setFont(new Font("Arial", Font.BOLD, 20));
-                titleField.setHorizontalAlignment(JLabel.CENTER);
-                titleField.setBackground(paleBackground);
-                titleField.setForeground(paleForeground);
-                panel.add(titleField, BorderLayout.NORTH);
-
-                // Create a panel for the game details
-                JPanel infoPanel = new JPanel(new GridLayout(2, 2));
-                infoPanel.setBorder(new EmptyBorder(20, 0, 20, 0));
-
-
-                //Price area
-                JPanel topLeftPanel = new JPanel(new GridLayout(1, 2));
-                topLeftPanel.add(new JLabel("Price $"));
-                topLeftPanel.add(new JTextField(String.valueOf(price)));
-                topLeftPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
-
-                //Release date area
-                JPanel bottomLeftPanel = new JPanel(new GridLayout(1, 2));
-                JPanel releaseDateTextPanel = new JPanel(new GridLayout(4, 1));
-                releaseDateTextPanel.setBorder(new EmptyBorder(10, 0, 10, 20));
-                releaseDateTextPanel.add(new JLabel(""));
-                releaseDateTextPanel.add(new JLabel("Release Date"));
-                releaseDateTextPanel.add(new JLabel("(YYYY-MM-DD)"));
-                bottomLeftPanel.add(releaseDateTextPanel);
-                bottomLeftPanel.add(new JTextField(String.valueOf(releaseDate)));
-                bottomLeftPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
-
-                //Studio name area
-                JPanel topRightPanel = new JPanel(new GridLayout(1, 2));
-                topRightPanel.add(new JLabel("Studio Name"));
-                ArrayList<String> studioNames = fetchStudioNames();
-                JComboBox<String> studioComboBox = new JComboBox<>(studioNames.toArray(new String[0]));
-                studioComboBox.setSelectedItem(studioName);
-                topRightPanel.add(studioComboBox);
-                topRightPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
-
-                //Remaining stock area
-                JPanel bottomRightPanel = new JPanel(new GridLayout(1, 2));
-                bottomRightPanel.add(new JLabel("Remaining Stock"));
-                bottomRightPanel.add(new JTextField(String.valueOf(remainingStock)));
-                bottomRightPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
-
-                // Add the panels to the info panel
-                infoPanel.add(topLeftPanel);
-                infoPanel.add(topRightPanel);
-                infoPanel.add(bottomLeftPanel);
-                infoPanel.add(bottomRightPanel);
-                panel.add(infoPanel, BorderLayout.CENTER);
-
-                // Add an update button
-                JButton updateButton = new JButton("Update Game");
-                updateButton.setBackground(paleBackground);
-                panel.add(updateButton, BorderLayout.SOUTH);
-
-
-
-
-                updateButton.addActionListener(e -> {
-                    try (Connection updateConnection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-                        if (studioName.equals( ((String) studioComboBox.getSelectedItem()))) {
-                            // Studio name is not changed
-                            // Update the game details
-                            String updateSql = "UPDATE game SET price = ?, release_date = ?, remaining_stock = ?, game_title = ? WHERE game_title = ?";
-                            try (PreparedStatement updateStatement = updateConnection.prepareStatement(updateSql)) {
-                                // Get updated values from text fields
-                                int updatedPrice = Integer.parseInt(((JTextField) topLeftPanel.getComponent(1)).getText());
-                                String updatedReleaseDate = ((JTextField) bottomLeftPanel.getComponent(1)).getText();
-                                int updatedRemainStock = Integer.parseInt(((JTextField) bottomRightPanel.getComponent(1)).getText());
-                                String updatedGameTitle = ((JTextField) titleField).getText();
-
-
-                                // Set parameters for the update statement
-                                updateStatement.setInt(1, updatedPrice);
-                                updateStatement.setString(2, updatedReleaseDate);
-                                updateStatement.setInt(3, updatedRemainStock);
-                                updateStatement.setString(4, updatedGameTitle);
-                                updateStatement.setString(5, gameTitle);
-
-
-
-                                // Execute the update statement
-                                int rowsAffected = updateStatement.executeUpdate();
-
-                                if (rowsAffected > 0) {
-                                    JOptionPane.showMessageDialog(null, "Game updated successfully!");
-                                    displayGamesList();
-                                    gameDetails.dispose(); // Close the frame after successful update
-
-                                } else {
-                                    JOptionPane.showMessageDialog(null, "Failed to update game. Please check your input.");
-                                }
-                            }
-                            return;
-                        }
-                        else {
-                            String updatedStudioName = (String) studioComboBox.getSelectedItem();
-                            // Change the studio of the game
-                            String updateSql = "UPDATE game SET studio_name = ? WHERE game_title = ?";
-                            try (PreparedStatement updateStatement = updateConnection.prepareStatement(updateSql)) {
-                                // Set parameters for the update statement
-                                updateStatement.setString(1, updatedStudioName);
-                                updateStatement.setString(2, gameTitle);
-
-                                // Execute the update statement
-                                int rowsAffected = updateStatement.executeUpdate();
-
-                                if (rowsAffected > 0) {
-                                    JOptionPane.showMessageDialog(null, "Game updated successfully!");
-                                    displayGamesList();
-                                    gameDetails.dispose(); // Close the frame after successful update
-
-                                } else {
-                                    JOptionPane.showMessageDialog(null, "Failed to update game. Please check your input.");
-                                }
-                            }
-
-                        }
-
-                    } catch (SQLException ex) {
-                        ex.printStackTrace();
-                        JOptionPane.showMessageDialog(null, "Error updating game details.");
-                    }
-                });
-
-                gameDetails.setVisible(true);
-            }
+            gameDetails.setVisible(true);
         } catch (SQLException ex) {
             ex.printStackTrace();
             JOptionPane.showMessageDialog(null, "Error fetching game details.");
@@ -362,7 +415,6 @@ public class GameVaultApp {
             if(date == null){
                 return;
             }
-            System.out.println(date);
 
             Object[] options = {"yes", "no"};
             Object selectionObject = JOptionPane.showInputDialog(null, "Is the game exclusive ?", "Menu", JOptionPane.PLAIN_MESSAGE, null, options, options[0]);
@@ -390,7 +442,7 @@ public class GameVaultApp {
             }
             else{
                 try{
-                    intStock = Integer.parseInt(price);
+                    intStock = Integer.parseInt(stock);
                 } catch (NumberFormatException e){
                     JOptionPane.showMessageDialog(null, "Error: an integer was expected", "Error", JOptionPane.ERROR_MESSAGE);
                     return;
@@ -483,13 +535,80 @@ public class GameVaultApp {
     }
 
     private static void displayGamesList() {
-        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)){
-            String sql = "SELECT * FROM game;";
-            PreparedStatement preparedStatement = connection.prepareStatement(sql);
-            ResultSet resultSet = preparedStatement.executeQuery();
+        GameManagement.updateGameTable(GameManagement.FILTER_AND_ORDER_BY, filter, sort, order);
+    }
+
+    private static void displayGamesList(int selectionMode){
+       GameManagement.updateGameTable(selectionMode, filter, sort, order);
+    }
+
+    static class GameManagement {
+        static final int FILTER_BY = 1;
+        static final int ORDER_BY = 2;
+        static final int FILTER_AND_ORDER_BY = 3;
+
+        public static ArrayList<Game> fetchGamesList(int selectionMode, String filter, String sort, String order) {
+            String sql;
+            filter =  filter==null ? "" : filter;
+            sort =  sort==null ? "game_id" : sort;
+            order = order==null ? "ascending" : order;
+            ArrayList<Game> gameArrayList = new ArrayList<>();
+
+            try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+
+                // default
+                PreparedStatement preparedStatement = null;
+                ResultSet resultSet = null;
+                switch (selectionMode) {
+                    case FILTER_BY -> {
+                        // filter by name
+                        sql = "SELECT * FROM game WHERE game_title LIKE ?;";
+                        preparedStatement = connection.prepareStatement(sql);
+                        preparedStatement.setString(1, "%" + filter + "%");
+                        resultSet = preparedStatement.executeQuery();
+                    }
+                    case ORDER_BY -> {
+                        // order by
+                        if(order.equals("ascending")){
+                            sql = "SELECT * FROM game ORDER BY ? ASC;";
+                        }
+                        else {
+                            sql = "SELECT * FROM game ORDER BY ? DESC;";
+                        }
+                        preparedStatement = connection.prepareStatement(sql);
+                        preparedStatement.setString(1, sort);
+                        resultSet = preparedStatement.executeQuery();
+                    }
+                    case FILTER_AND_ORDER_BY -> {
+                        if(order.equals("DESC")){
+                            sql = "SELECT * FROM game WHERE game_title LIKE '%" + filter + "%' ORDER BY " + sort + " DESC";
+                        }
+                        else {
+                            sql = "SELECT * FROM game WHERE game_title LIKE '%" + filter + "%' ORDER BY " + sort +" ASC;";
+                        }
+                        Statement statement = connection.createStatement();
+                        resultSet = statement.executeQuery(sql);
+                    }
+                    default -> {
+                        sql = "SELECT * FROM game ORDER BY game_id;";
+                        preparedStatement = connection.prepareStatement(sql);
+                        resultSet = preparedStatement.executeQuery();
+                    }
+                }
+
+                while (resultSet.next()){
+                    gameArrayList.add(new Game(resultSet));
+                }
+            }catch (SQLException ex){
+                ex.printStackTrace();
+            }
+            return gameArrayList;
+        }
+
+        private static void updateGameTable(int selectionMode, String filter, String sort, String order) {
             listData = new Vector<>();
-            while (resultSet.next()) {
-                listData.add(new Game(resultSet).toVector());
+            for(Game game : GameManagement.fetchGamesList(selectionMode, filter, sort, order)) {
+                listData.add(game.toVector());
             }
             tableModel = new DefaultTableModel(listData, columnNames) {
                 @Override
@@ -499,29 +618,6 @@ public class GameVaultApp {
                 }
             };
             displayTable.setModel(tableModel);
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-        }
-    }
-
-    public static void updateGameTable(ArrayList<Game> gameList){
-
-    }
-
-    static class GameRankingManagement {
-        public static ArrayList<Game> getGameRanking() {
-            ArrayList<Game> ranking = new ArrayList<>();
-            try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-                 Statement statement = connection.createStatement()) {
-                String sql = "SELECT * FROM game ORDER BY rating DESC";
-                ResultSet resultSet = statement.executeQuery(sql);
-                while (resultSet.next()){
-                    ranking.add(new Game(resultSet));
-                }
-            }catch (SQLException ex){
-                ex.printStackTrace();
-            }
-            return ranking;
         }
     }
 }
