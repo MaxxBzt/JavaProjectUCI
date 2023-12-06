@@ -1,5 +1,6 @@
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class Game {
@@ -137,7 +138,7 @@ public class Game {
                 String.valueOf(getGameId()),
                 getGameTitle(),
                 String.valueOf(getPrice()),
-                String.valueOf(getReleaseDate()),
+                new SimpleDateFormat("yyyy-MM-dd").format(getReleaseDate()),
                 isExclusive() ? "yes" : "no",
                 getStudioName(),
                 (getRating() == -1) ? "no rating": String.valueOf(getRating()),

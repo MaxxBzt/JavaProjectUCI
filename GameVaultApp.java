@@ -17,16 +17,16 @@ public class GameVaultApp {
     private static String sort;
     private static String filter;
     private static String order;
-    private static final String DB_URL = "jdbc:mariadb://localhost:3316/gamevault_db";
-    private static final String DB_USER = "root";
-    private static final String DB_PASSWORD = "1234";
+    private static final String DB_URL = "jdbc:mariadb://localhost/gamevault_db";
+    private static final String DB_USER = "max";
+    private static final String DB_PASSWORD = "";
 
     public static void main(String[] args) {
         createTableIfNotExists();
 
         SwingUtilities.invokeLater(() -> {
             JFrame frame = new JFrame("Gamevault Management System");
-            frame.setSize(400, 300);
+            frame.setSize(600, 300);
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
             JPanel panel = new JPanel();
@@ -144,6 +144,7 @@ public class GameVaultApp {
                 int selectedIndex = displayTable.getSelectedRow();
                 if (selectedIndex !=-1){
                     deleteGame(selectedIndex);
+                    displayGamesList();
                 }
             }
         });
@@ -181,7 +182,7 @@ public class GameVaultApp {
                 preparedStatement1.setInt(1, gameId);
                 int affectedRows = preparedStatement1.executeUpdate();
                 if(affectedRows == 1) {
-                    JOptionPane.showMessageDialog(null, "Game deleted successfully.", "Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(null, "Game deleted successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
                 }
                 else{
                     JOptionPane.showMessageDialog(null, "Game doesn't exist.", "Error", JOptionPane.ERROR_MESSAGE);
