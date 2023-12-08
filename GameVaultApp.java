@@ -80,6 +80,7 @@ public class GameVaultApp {
             public void actionPerformed(ActionEvent e) {
                 String title = searchTextField.getText();
                 if(title == null || title.equals("")) {
+                    filter = "";
                     displayGamesList();
                 }
                 else {
